@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # 导入Flask类
-from flask import Flask
+from flask import Flask, request
 from flask_restful import Api, Resource
 from flask_sqlalchemy import SQLAlchemy
 
@@ -40,8 +40,29 @@ class UserApi(Resource):
     def get(self):
         # 查看提取数据库中所有的用户
         users = User.query.all()
-        # 返回一个列表：每个user的id
-        return [{"id": u.id, "uname": u.username} for u in users]
+        # 返回一个列表：每个user的id、name
+        return [{"id": u.id, "name": u.username} for u in users]
+
+    # 用户登录
+    def post(self):
+        # 获取用户名和密码
+        username=request.json.get("username")
+        password=request.json.get("password")
+
+        # 验证：通过数据库查询过滤符合条件的第一条数据，若用户存在，返回登录成功消息，否则返回登录失败消息
+        user = User.query.filter_by(username=username, password=password).first()
+        if user:
+            return {"msg": "login success"}
+        else:
+            return {"msg": "login fail"}
+
+    # 用户注册
+    def put(self):
+        pass
+
+    # 用户账户删除
+    def delete(self):
+        pass
 
 # 用例管理
 class TestcaseApi(Resource):
