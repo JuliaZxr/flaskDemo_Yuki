@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 # 导入Flask类
-from flask import Flask, request
+from flask import Flask, request, jsonify
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_restful import Api, Resource
 from flask_sqlalchemy import SQLAlchemy
 
@@ -14,6 +15,11 @@ api = Api(app)
 # app.config['SQLALCHEMY_DATABASE_URI'] = '数据库类型://数据库用户名:数据库密码@数据库地址:数据库端口/数据库名字'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:root123@127.0.0.1:3306/lagou3_yuki'
 db = SQLAlchemy(app)
+
+# session加密设置
+app.config['JWT_SECRET_KEY'] = 'yuki-secret'  # Change this!
+jwt = JWTManager(app)
+
 
 # 数据库结构
 class User(db.Model):
@@ -52,13 +58,27 @@ class UserApi(Resource):
         # 验证：通过数据库查询过滤符合条件的第一条数据，若用户存在，返回登录成功消息，否则返回登录失败消息
         user = User.query.filter_by(username=username, password=password).first()
         if user:
-            return {"msg": "login success"}
+            # 登录成功后返回客户一个token
+            access_token = create_access_token(identity=username)
+            return {"msg": "login success", "token": access_token}
         else:
             return {"msg": "login fail"}
 
     # 用户注册
     def put(self):
-        pass
+        # 获取用户名、密码、邮箱
+        username = request.json.get("username")
+        password = request.json.get("password")
+        email = request.json.get("email")
+
+        # 新建user对象，设置参数
+        user = User(username=username, password=password, email=email)
+        # 通过db进行数据库新增
+        db.session.add(user)
+        # 提交db操作
+        db.session.commit()
+
+        return {"msg": "register success"}
 
     # 用户账户删除
     def delete(self):
@@ -66,6 +86,8 @@ class UserApi(Resource):
 
 # 用例管理
 class TestcaseApi(Resource):
+    # @jwt_required是个装饰器，添加后，对应方法就被自动加上token校验
+    @jwt_required
     def get(self):
         return {'hello': 'TestcaseApi'}
 
