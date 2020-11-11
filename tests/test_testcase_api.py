@@ -43,7 +43,7 @@ class TestTestCaseApi:
             },
             json={
                 "casename": "testcase_demo_name" + str(datetime.datetime.now()),
-                "data": "click a"
+                "data": "click add"
             }
         )
         assert r.status_code == 200
@@ -60,6 +60,9 @@ class TestTestCaseApi:
         assert r.status_code == 200
 
         assert len(r.json()) >= 1
+
+        data = [testcase["data"] for testcase in r.json()]
+        assert 'click add' in data
 
     # 测试修改数据， 此处使用的是post非put
     """
@@ -80,7 +83,7 @@ class TestTestCaseApi:
                 "id": 1
             },
             json={
-                "data": "click a-modify"
+                "data": "click modify"
             }
         )
         print(r.text)

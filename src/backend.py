@@ -20,6 +20,9 @@ db = SQLAlchemy(app)
 app.config['JWT_SECRET_KEY'] = 'yuki-secret'  # Change this!
 jwt = JWTManager(app)
 
+"""
+对应不同的数据库表结构：User、Testcase、Task
+"""
 
 # user 用户 数据库结构
 class User(db.Model):
@@ -44,6 +47,27 @@ class Testcase(db.Model):
     def __repr__(self):
         return '<Testcase %r>' % self.casename
 
+# task 任务 数据库结构
+class Task(db.Model):
+    # 表名
+    __tablename__ = 'task'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # log 是任务执行后的返回结果
+    log = db.Column(db.String(1024), unique=False, nullable=True)
+
+    """
+    建立关联数据库：
+        testcase_id作为testcase表的外键ForeignKey，
+        testcase:数据库中不存在的字段，只是为了查找和反向查找。backref:在关系的另一模型中添加反向引用        
+    """
+    testcase_id = db.Column(db.Integer, db.ForeignKey('testcase.id'),nullable=False)
+    testcase = db.relationship('Testcase',backref=db.backref('tasks', lazy=True))
+
+    def __repr__(self):
+        return '<Task %r>' % self.log
+
+
 # 首页
 class Main(Resource):
     def get(self):
@@ -55,7 +79,12 @@ class UserApi(Resource):
         # 查看提取数据库中所有的用户
         users = User.query.all()
         # 返回一个列表：每个user的id、name
-        return [{"id": u.id, "name": u.username} for u in users]
+        return [
+            {
+                "id": u.id,
+                "name": u.username
+            } for u in users
+        ]
 
     # 用户登录
     def post(self):
@@ -98,7 +127,13 @@ class TestcaseApi(Resource):
     @jwt_required
     def get(self):
         # 查看提取数据库中所有的用例,并返回一个列表：每个用例的属性值
-        return [{"id": case.id, "casename": case.casename, "data": case.data} for case in Testcase.query.all()]
+        return [
+            {
+                "id": case.id,
+                "casename": case.casename,
+                "data": case.data
+            } for case in Testcase.query.all()
+        ]
 
     @jwt_required
     def post(self):
@@ -138,8 +173,30 @@ class TestcaseApi(Resource):
 
 # 任务管理
 class TaskApi(Resource):
+    @jwt_required
     def get(self):
-        return {'hello': 'TaskApi'}
+        # 查看提取数据库中所有的任务,并返回一个列表：每个任务的属性值
+        return [
+            {
+                "id": task.id,
+                "log": task.log,
+                "testcase_id": task.testcase_id
+            } for task in Task.query.all()
+        ]
+
+    @jwt_required
+    def post(self):
+        """
+        /task post 表示新增任务，同时执行
+        /task?id=1 post 表示结果回传
+        """
+        # 新建一个对象，设置参数值后，添加到数据库，并提交
+        task = Task()
+        task.log = request.json.get("log")
+        task.testcase_id = request.json.get("testcase_id")
+        # 新增数据使用add
+        db.session.add(task)
+        db.session.commit()
 
 # 报告管理
 class ReportApi(Resource):
