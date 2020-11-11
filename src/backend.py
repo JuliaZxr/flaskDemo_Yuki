@@ -21,7 +21,7 @@ app.config['JWT_SECRET_KEY'] = 'yuki-secret'  # Change this!
 jwt = JWTManager(app)
 
 
-# 数据库结构
+# user 用户 数据库结构
 class User(db.Model):
     # id时integer类型，是主键
     id = db.Column(db.Integer, primary_key=True)
@@ -35,6 +35,14 @@ class User(db.Model):
     def __repr__(self):
         return '<User %r>' % self.username
 
+# testcase 用例 数据库结构
+class Testcase(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    casename = db.Column(db.String(80), unique=True, nullable=False)
+    data = db.Column(db.String(1024), unique=False, nullable=True)
+
+    def __repr__(self):
+        return '<Testcase %r>' % self.casename
 
 # 首页
 class Main(Resource):
@@ -60,7 +68,7 @@ class UserApi(Resource):
         if user:
             # 登录成功后返回客户一个token
             access_token = create_access_token(identity=username)
-            return {"msg": "login success", "token": access_token}
+            return {"msg": "login success", "access_token": access_token}
         else:
             return {"msg": "login fail"}
 
@@ -89,7 +97,44 @@ class TestcaseApi(Resource):
     # @jwt_required是个装饰器，添加后，对应方法就被自动加上token校验
     @jwt_required
     def get(self):
-        return {'hello': 'TestcaseApi'}
+        # 查看提取数据库中所有的用例,并返回一个列表：每个用例的属性值
+        return [{"id": case.id, "casename": case.casename, "data": case.data} for case in Testcase.query.all()]
+
+    @jwt_required
+    def post(self):
+        """
+        /testcase post 表示新增
+        /testcase?id=1 post 表示修改
+
+        此例子新增和修改都使用post；所以用if判断区别，当request中的args参数含id---->对应测试用例方法中的参数params={"id": 1}；则执行修改命令；否则执行新增命令
+        """
+        if request.args.get("id"):
+            # 查询所有用例，过滤测试用例里id=1的数据，取第一条，赋值给testcase
+            testcase = Testcase.query.filter_by(id=request.args.get("id")).first()
+            # 如果请求的参数中有casename或者data，再执行修改命令
+            if request.json.get("casename"):
+                testcase.casename = request.json.get("casename")
+            if request.json.get("data"):
+                testcase.data = request.json.get("data")
+            # 修改数据使用flush
+            db.session.flush()
+            db.session.commit()
+        else:
+            # 新建一个对象，设置参数值后，添加到数据库，并提交
+            testcase = Testcase()
+            testcase.casename = request.json.get("casename")
+            testcase.data = request.json.get("data")
+            # 新增数据使用add
+            db.session.add(testcase)
+            db.session.commit()
+
+    @jwt_required
+    def put(self):
+        pass
+
+    @jwt_required
+    def delete(self):
+        pass
 
 # 任务管理
 class TaskApi(Resource):
