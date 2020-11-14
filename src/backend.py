@@ -8,6 +8,8 @@ from flask_restful import Api, Resource
 from flask_sqlalchemy import SQLAlchemy
 
 # 实例化，可视为固定格式
+from jenkinsapi.jenkins import Jenkins
+
 app = Flask(__name__)
 api = Api(app)
 # 配置数据库，连接地址
@@ -19,6 +21,13 @@ db = SQLAlchemy(app)
 # session加密设置
 app.config['JWT_SECRET_KEY'] = 'yuki-secret'  # Change this!
 jwt = JWTManager(app)
+
+# jenkins api配置
+jenkins = Jenkins(
+        'http://192.168.1.21:8080/',
+        username='Momo',
+        password='11f0b9a6d7c7ac4c6082911f2981b0144e'
+    )
 
 """
 对应不同的数据库表结构：User、Testcase、Task
@@ -190,13 +199,31 @@ class TaskApi(Resource):
         /task post 表示新增任务，同时执行
         /task?id=1 post 表示结果回传
         """
-        # 新建一个对象，设置参数值后，添加到数据库，并提交
-        task = Task()
-        task.log = request.json.get("log")
-        task.testcase_id = request.json.get("testcase_id")
-        # 新增数据使用add
-        db.session.add(task)
-        db.session.commit()
+
+        # 如果请求回传，则根据回传的id，去数据库中过滤对应数据，再进行log修改，然后更新数据库
+        if request.json.get("id"):
+            task = Task.query.filter_by(id=request.args.get("id")).first()
+            if request.json.get('log'):
+                task.log = request.json.get("log")
+            # 更新数据
+            db.session.flush()
+            db.session.commit()
+        else:
+            # 新建一个对象，设置参数值后，添加到数据库，并提交
+            task = Task()
+            if request.json.get('log'):
+                task.log = request.json.get("log")
+            if request.json.get('testcase_id'):
+                task.testcase_id = request.json.get("testcase_id")
+            # 新增数据使用add
+            db.session.add(task)
+            db.session.commit()
+
+            # 新增任务完成后，就调用jenkins构建
+            jenkins['lagou3_yuki_testcase'].invoke(
+                build_params={'testcase_id': task.testcase_id}
+            )
+            # 构建完成后的结果再通过post接口回传
 
 # 报告管理
 class ReportApi(Resource):
